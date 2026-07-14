@@ -1,0 +1,28 @@
+from pathlib import Path
+import numpy as np
+import nibabel as nib
+import pandas as pd
+from global_signal_plots.scan import scan_bold, DEFAULT_GLOB
+from global_signal_plots.io import write_metrics_tsv, KEY_COLS
+
+def _make_bold(tmp_path, name):
+    func = tmp_path / "sub-s03" / "ses-01" / "func"
+    func.mkdir(parents=True, exist_ok=True)
+    data = np.ones((2, 2, 2, 4), dtype=np.float32)
+    nib.save(nib.Nifti1Image(data, np.eye(4)), func / name)
+
+def test_scan_bold_rows(tmp_path):
+    _make_bold(tmp_path, "sub-s03_ses-01_task-stroop_run-1_echo-2_bold.nii.gz")
+    rows = scan_bold(tmp_path, glob=DEFAULT_GLOB)
+    assert len(rows) == 1
+    assert rows[0]["subject"] == "s03" and rows[0]["task"] == "stroop"
+    assert abs(rows[0]["mean_gs"] - 1.0) < 1e-6
+
+def test_scan_bold_writes_tsv(tmp_path):
+    _make_bold(tmp_path, "sub-s03_ses-01_task-stroop_run-1_echo-2_bold.nii.gz")
+    rows = scan_bold(tmp_path, glob=DEFAULT_GLOB)
+    out = tmp_path / "gs_metrics.tsv"
+    write_metrics_tsv(rows, out)
+    df = pd.read_csv(out, sep="\t")
+    assert list(df.columns[:4]) == KEY_COLS
+    assert "mean_gs" in df.columns

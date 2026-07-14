@@ -7,7 +7,8 @@ import re
 def parse_bold_meta(filename: str) -> dict:
     """Extract bare-ID entities from a BOLD filename. Missing entities -> None."""
     def grab(key: str):
-        m = re.search(rf"{key}-([A-Za-z0-9]+)", filename)
+        # Delimiter-aware so e.g. "sub" cannot match inside "task-subitize".
+        m = re.search(rf"(?:^|_){key}-([A-Za-z0-9]+)(?:_|\.|$)", filename)
         return m.group(1) if m else None
     return {
         "subject": grab("sub"),

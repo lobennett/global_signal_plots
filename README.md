@@ -34,10 +34,13 @@ uv run nf-global-signal \
 - `--out-tsv` — output path for the standardized `gs_metrics.tsv`.
 - `--out-pdf` (optional) — if given, also render a per-subject PDF of
   global-signal traces (one page per subject, one axis per matched run).
-- `--glob` (optional) — BOLD glob relative to `--bids-dir`. Defaults to
-  `sub-*/ses-*/func/*echo-2*bold.nii.gz`, which targets echo-2 of multi-echo
-  BOLD acquisitions. Override this for single-echo layouts or other naming
-  conventions.
+- `--glob` (optional) — BOLD glob relative to `--bids-dir`. When omitted, the
+  default scans BOTH the session layout `sub-*/ses-*/func/*echo-2*bold.nii.gz`
+  and the session-less layout `sub-*/func/*echo-2*bold.nii.gz` (union, deduped),
+  so single-session datasets are not silently missed. Both target echo-2 of
+  multi-echo BOLD acquisitions. Pass `--glob` to override for single-echo
+  layouts or other naming conventions. A BOLD file that fails to load is logged
+  and skipped rather than aborting the run.
 - `--tr-marker` (optional) — volume index at which to draw a vertical marker
   line in the PDF (e.g. to flag a known artifact TR). Has no effect without
   `--out-pdf`.
@@ -47,10 +50,10 @@ uv run nf-global-signal \
 | Column    | Type  | Description                                              |
 |-----------|-------|------------------------------------------------------------|
 | `subject` | str   | Bare subject ID (no `sub-` prefix)                        |
-| `session` | str   | Bare session ID (no `ses-` prefix)                         |
+| `session` | str   | Bare session ID (no `ses-` prefix); empty string for session-less layouts |
 | `task`    | str   | Task label                                                 |
 | `run`     | str   | Bare run ID                                                |
-| `mean_gs` | float | Mean of the global-signal trace (spatial mean per volume)  |
+| `mean_gs` | float | Mean of the global-signal trace (whole-FOV spatial mean per volume, not brain-masked) |
 | `gs_std`  | float | Standard deviation of the global-signal trace              |
 | `n_volumes` | int | Number of volumes (timepoints) in the trace                |
 

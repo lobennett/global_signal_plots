@@ -16,15 +16,28 @@ def global_signal_timeseries(nifti_path: Path) -> np.ndarray:
     brain-only global signal.
     """
     img = nib.load(str(nifti_path))
+    if len(img.shape) != 4 or any(size == 0 for size in img.shape):
+        raise ValueError(f"Expected nonempty 4D BOLD image, got shape {img.shape}")
     data = img.get_fdata()
-    return np.mean(data, axis=(0, 1, 2))
+    if not np.isfinite(data).all():
+        raise ValueError("BOLD image must contain only finite voxel values")
+    with np.errstate(over="ignore", invalid="ignore"):
+        gs = np.mean(data, axis=(0, 1, 2))
+    summarize_gs(gs)  # Also reject overflow before accepting a scan.
+    return gs
 
 
 def summarize_gs(gs: np.ndarray) -> dict:
     """Summary metrics for a global-signal trace."""
     gs = np.asarray(gs, dtype=float)
+    if gs.ndim != 1 or not gs.size or not np.isfinite(gs).all():
+        raise ValueError("Expected a nonempty finite 1D global-signal trace")
+    with np.errstate(over="ignore", invalid="ignore"):
+        mean, std = float(gs.mean()), float(gs.std())
+    if not np.isfinite([mean, std]).all():
+        raise ValueError("Global-signal summary must be finite")
     return {
-        "mean_gs": float(gs.mean()) if gs.size else 0.0,
-        "gs_std": float(gs.std()) if gs.size else 0.0,
+        "mean_gs": mean,
+        "gs_std": std,
         "n_volumes": int(gs.size),
     }

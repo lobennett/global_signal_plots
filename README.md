@@ -53,15 +53,32 @@ uv run nf-global-signal \
 - `--out-pdf` (optional) — if given, also render a per-subject PDF of
   global-signal traces (one page per subject, one axis per matched run).
 - `--glob` (optional) — BOLD glob relative to `--bids-dir`. When omitted, the
-  default scans BOTH the session layout `sub-*/ses-*/func/*echo-2*bold.nii.gz`
-  and the session-less layout `sub-*/func/*echo-2*bold.nii.gz` (union, deduped),
+  default scans BOTH the session layout `sub-*/ses-*/func/*_echo-2_*bold.nii.gz`
+  and the session-less layout `sub-*/func/*_echo-2_*bold.nii.gz` (union, deduped),
   so single-session datasets are not silently missed. Both target echo-2 of
   multi-echo BOLD acquisitions. Pass `--glob` to override for single-echo
-  layouts or other naming conventions. A BOLD file that fails to load is logged
-  and skipped rather than aborting the run.
+  layouts or other naming conventions. Echo 20 does not match the default.
+  Invalid files are logged and skipped when other usable scans remain.
 - `--tr-marker` (optional) — volume index at which to draw a vertical marker
   line in the PDF (e.g. to flag a known artifact TR). Has no effect without
   `--out-pdf`.
+
+## Coverage and output failures
+
+Inputs must be nonempty finite 4D images. Each run reports distinct matched
+files as `attempted`, usable files as `succeeded`, and skipped files as `failed`.
+Warnings identify invalid files. All files sharing the same
+`subject/session/task/run` identity are skipped as ambiguous; choose a narrower
+`--glob` when several acquisitions, spaces or echoes share that identity.
+
+An invalid root or no usable scans exits nonzero without replacing prior
+outputs. When a PDF is requested, both products are staged before publication;
+a plotting or writing failure does not publish a new table alongside an old
+PDF. Ordinary replacement failures roll back prior products. Treat the CLI
+exit status as authoritative: files left after failure may belong to a prior
+run. Do not run concurrent writers to the same destinations. Replacement is
+atomic per file, not a crash-safe transaction across both files. See
+[the audit record](docs/CODE-REVIEW.md) for evidence and limits.
 
 ## `gs_metrics.tsv` schema
 

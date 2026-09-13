@@ -4,7 +4,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from global_signal_plots.metrics import summarize_gs
 
 import matplotlib
 matplotlib.use("Agg")
@@ -28,18 +27,15 @@ def render_pdf(traces: list[tuple[dict, np.ndarray]], pdf_path: Path,
 
     Consumes the already-computed ``(meta, gs_trace)`` pairs from
     :func:`global_signal_plots.scan.collect_traces` -- no re-glob, no recompute.
-    Empty/invalid traces and plotting errors abort, so a successful PDF includes
-    every supplied trace. The CLI stages this file before publishing outputs.
+    Plotting errors abort, so a successful PDF includes every supplied trace.
+    The CLI stages this file before publishing outputs.
     """
     pdf_path = Path(pdf_path)
-    if not traces:
-        raise ValueError("No usable scans to plot")
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
     by_sub: dict[str, list[tuple[dict, np.ndarray]]] = {}
     for meta, gs in traces:
-        summarize_gs(gs)
         by_sub.setdefault(meta["subject"], []).append((meta, gs))
 
-    pdf_path.parent.mkdir(parents=True, exist_ok=True)
     with PdfPages(pdf_path) as pdf:
         for subject, items in by_sub.items():
             n = len(items)

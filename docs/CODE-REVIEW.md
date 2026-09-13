@@ -17,8 +17,9 @@ root returned success without a PDF. The echo-2 glob also selected echo 20,
 creating identical subject/session/task/run rows. The added regression suite
 initially had **40 failing cases**, confirming these gaps locally.
 
-- `metrics.py` now requires nonempty 4D images with finite voxels, and nonempty
-  finite 1D traces with finite summaries (including overflow checks).
+- `metrics.py` now requires nonempty 4D images, and nonempty finite 1D traces
+  with finite summaries. A nonfinite voxel or an overflowing sum makes its
+  volume's spatial mean nonfinite, so that one trace check rejects both.
 - `scan.py` validates the root, matches the exact `_echo-2_` entity by default,
   and rejects every candidate in an ambiguous reduced-identity group. Warnings
   name the conflicting files, even if one copy is corrupt. A narrower `--glob`
@@ -36,7 +37,7 @@ initially had **40 failing cases**, confirming these gaps locally.
 
 ## Validation and limits
 
-**59 tests pass**, including the original suite, using `pytest -q -W error`.
+**58 tests pass**, including the original suite, using `pytest -q -W error`.
 Tests use generated NIfTIs and injected local plot/write/rename failures, with
 fresh and pre-existing outputs. They cover NaN/±Inf, 3D/5D/zero dimensions,
 summary/spatial overflow, missing/non-directory/empty roots, corrupt inputs,

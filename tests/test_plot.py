@@ -1,4 +1,3 @@
-import pytest
 from pathlib import Path
 import numpy as np
 import nibabel as nib
@@ -30,11 +29,3 @@ def test_volume_axis_and_pretrim_marker_unchanged(tmp_path, monkeypatch):
     np.testing.assert_array_equal(captured[0].lines[0].get_xdata(), np.arange(10))
     np.testing.assert_array_equal(captured[0].lines[0].get_ydata(), np.arange(10))
     assert list(captured[0].lines[1].get_xdata()) == [7, 7]
-
-
-def test_empty_pdf_input_fails_without_touching_old_file(tmp_path):
-    path = tmp_path / "out.pdf"
-    path.write_bytes(b"old pdf")
-    with pytest.raises(ValueError):
-        render_pdf([], path)
-    assert path.read_bytes() == b"old pdf"

@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from global_signal_plots.discover import parse_bold_meta
+from global_signal_plots.io import KEY_COLS
 from global_signal_plots.metrics import global_signal_timeseries, summarize_gs
 
 logger = logging.getLogger(__name__)
@@ -15,8 +16,8 @@ logger = logging.getLogger(__name__)
 # and session-less (``sub-*/func``) layouts are scanned so single-session
 # datasets are not silently missed. Override on the CLI for other layouts.
 DEFAULT_GLOBS = (
-    "sub-*/ses-*/func/*echo-2*bold.nii.gz",
-    "sub-*/func/*echo-2*bold.nii.gz",
+    "sub-*/ses-*/func/*_echo-2_*bold.nii.gz",
+    "sub-*/func/*_echo-2_*bold.nii.gz",
 )
 # Back-compat: the primary (session) pattern, still importable as DEFAULT_GLOB.
 DEFAULT_GLOB = DEFAULT_GLOBS[0]
@@ -34,18 +35,38 @@ def collect_traces(root: Path, glob=DEFAULT_GLOBS) -> list[tuple[dict, np.ndarra
 
     Each file's global-signal trace is computed exactly once here so it can be
     shared between the metrics TSV and the PDF (no double I/O). A file that
-    fails to load is logged and skipped, so one corrupt/unreadable NIfTI never
-    aborts the whole run -- finding bad scans is the point of the tool.
+    fails validation is logged and skipped. All candidates sharing the reduced
+    TSV identity are skipped, even if only one is readable. Coverage is logged;
+    an invalid root or no usable scans raises ValueError.
     """
     root = Path(root)
+    if not root.is_dir():
+        raise ValueError(f"BIDS root is not an existing directory: {root}")
+    paths = _iter_bold_paths(root, glob)
+    groups: dict[tuple, list[Path]] = {}
+    for path in paths:
+        meta = parse_bold_meta(path.name)
+        identity = tuple(meta[key] or "" for key in KEY_COLS)
+        groups.setdefault(identity, []).append(path)
     traces: list[tuple[dict, np.ndarray]] = []
-    for path in _iter_bold_paths(root, glob):
+    for identity, candidates in groups.items():
+        if len(candidates) > 1:
+            logger.warning("skipping ambiguous row identity %s: %s", identity,
+                           ", ".join(map(str, candidates)))
+            continue
+        path = candidates[0]
         try:
             gs = global_signal_timeseries(path)
         except Exception as exc:  # noqa: BLE001 - resilience over a bad file
-            logger.warning("skipping unreadable BOLD file %s: %s", path, exc)
+            logger.warning("skipping invalid BOLD file %s: %s", path, exc)
             continue
         traces.append((parse_bold_meta(path.name), gs))
+    coverage = (f"attempted={len(paths)} succeeded={len(traces)} "
+                f"failed={len(paths) - len(traces)}")
+    log = logger.warning if len(paths) != len(traces) else logger.info
+    log("scan coverage: %s", coverage)
+    if not traces:
+        raise ValueError(f"No usable scans in {root}; {coverage}")
     return traces
 
 

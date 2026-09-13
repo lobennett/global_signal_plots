@@ -2,10 +2,60 @@
 from __future__ import annotations
 
 from pathlib import Path
+from contextlib import contextmanager
+import os
+import shutil
+import tempfile
 
 import pandas as pd
 
 KEY_COLS = ["subject", "session", "task", "run"]
+
+
+@contextmanager
+def staged_outputs(paths: list[Path]):
+    """Build outputs beside their destinations, then replace with rollback.
+
+    Each rename is atomic, but multiple files are not a crash-safe transaction.
+    Callers must serialize runs targeting the same paths.
+    """
+    paths = [Path(path).resolve() for path in paths]
+    if len(set(paths)) != len(paths):
+        raise ValueError("TSV and PDF output paths must be distinct")
+    directories = []
+    staged, backups, published = [], {}, []
+    cleanup = True
+    try:
+        for path in paths:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            directory = Path(tempfile.mkdtemp(prefix=".gs-", dir=path.parent))
+            directories.append(directory)
+            staged.append(directory / f"new{path.suffix}")
+            if path.exists():
+                backup = directory / "previous"
+                shutil.copy2(path, backup)
+                backups[path] = backup
+        yield staged
+        for source, target in zip(staged, paths):
+            os.replace(source, target)
+            published.append(target)
+    except BaseException:
+        try:
+            for path in reversed(published):
+                if path in backups:
+                    os.replace(backups[path], path)
+                else:
+                    path.unlink()
+        except OSError as exc:
+            cleanup = False
+            raise RuntimeError(
+                f"Output rollback failed; recover prior products from {directories}"
+            ) from exc
+        raise
+    finally:
+        if cleanup:
+            for directory in directories:
+                shutil.rmtree(directory)
 
 
 def write_metrics_tsv(rows: list[dict], out_path: Path) -> Path:

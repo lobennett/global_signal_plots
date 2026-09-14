@@ -20,6 +20,24 @@ cd global_signal_plots
 uv sync
 ```
 
+## Tests
+
+On Python 3.11 or newer, create a virtual environment and run the full suite:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --editable '.[plot]' 'pytest>=8'
+MPLBACKEND=Agg python -m pytest -ra
+```
+
+GitHub Actions runs these tests on Ubuntu with Python 3.11 for pushes and pull
+requests. Tests generate small synthetic NIfTI fixtures and cover discovery,
+global-signal metrics, scanning, TSV output, PDF rendering, and the CLI. They
+require no participant data, credentials, or external services. Real participant
+datasets and Sherlock execution are not validated by this software suite.
+Dependencies follow `pyproject.toml`; this repository has no tracked lockfile.
+
 ## Usage
 
 ```bash

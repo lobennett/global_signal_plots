@@ -19,6 +19,13 @@ def staged_outputs(paths: list[Path]):
     Each rename is atomic, but multiple files are not a crash-safe transaction.
     Callers must serialize runs targeting the same paths.
     """
+    def preserve_access(source, target):
+        original = source.stat()
+        current = target.stat()
+        if (original.st_uid, original.st_gid) != (current.st_uid, current.st_gid):
+            os.chown(target, original.st_uid, original.st_gid)
+        shutil.copymode(source, target)
+
     paths = [Path(path).resolve() for path in paths]
     if len(set(paths)) != len(paths):
         raise ValueError("TSV and PDF output paths must be distinct")
@@ -34,11 +41,12 @@ def staged_outputs(paths: list[Path]):
             if path.exists():
                 backup = directory / "previous"
                 shutil.copy2(path, backup)
+                preserve_access(path, backup)
                 backups[path] = backup
         yield staged
         for source, target in zip(staged, paths):
             if target in backups:
-                shutil.copymode(backups[target], source)
+                preserve_access(backups[target], source)
         for source, target in zip(staged, paths):
             os.replace(source, target)
             published.append(target)

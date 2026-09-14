@@ -37,6 +37,9 @@ def staged_outputs(paths: list[Path]):
                 backups[path] = backup
         yield staged
         for source, target in zip(staged, paths):
+            if target in backups:
+                shutil.copymode(backups[target], source)
+        for source, target in zip(staged, paths):
             os.replace(source, target)
             published.append(target)
     except BaseException:

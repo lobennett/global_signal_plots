@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
-from global_signal_plots.io import write_metrics_tsv
+from global_signal_plots.io import staged_outputs, write_metrics_tsv
 from global_signal_plots.scan import (
     DEFAULT_GLOBS,
     collect_traces,
@@ -23,15 +24,23 @@ def main(argv=None):
     ap.add_argument("--tr-marker", type=int, default=None,
                     help="draw a vertical marker at this volume index in the PDF")
     args = ap.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     glob = args.glob if args.glob is not None else DEFAULT_GLOBS
     # Compute each global-signal trace exactly once, then reuse for TSV + PDF.
-    traces = collect_traces(Path(args.bids_dir), glob=glob)
-    rows = rows_from_traces(traces)
-    write_metrics_tsv(rows, Path(args.out_tsv))
-    if args.out_pdf:
-        from global_signal_plots.plot import render_pdf
-        render_pdf(traces, Path(args.out_pdf), tr_marker=args.tr_marker)
+    try:
+        traces = collect_traces(Path(args.bids_dir), glob=glob)
+        rows = rows_from_traces(traces)
+        outputs = [Path(args.out_tsv)]
+        if args.out_pdf:
+            outputs.append(Path(args.out_pdf))
+        with staged_outputs(outputs) as staged:
+            write_metrics_tsv(rows, staged[0])
+            if args.out_pdf:
+                from global_signal_plots.plot import render_pdf
+                render_pdf(traces, staged[1], tr_marker=args.tr_marker)
+    except Exception as exc:
+        ap.exit(1, f"nf-global-signal: failed; no completed new output set: {exc}\n")
     print(f"nf-global-signal: wrote {len(rows)} rows to {args.out_tsv}")
 
 

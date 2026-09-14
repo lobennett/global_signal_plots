@@ -13,3 +13,19 @@ def test_render_pdf_creates_file(tmp_path):
     pdf = tmp_path / "gs.pdf"
     render_pdf(traces, pdf, tr_marker=None)
     assert pdf.exists() and pdf.stat().st_size > 0
+
+
+
+def test_volume_axis_and_pretrim_marker_unchanged(tmp_path, monkeypatch):
+    from matplotlib.backends.backend_pdf import PdfPages
+    captured = []
+    savefig = PdfPages.savefig
+    def capture(pdf, figure, **kwargs):
+        captured.extend(figure.axes)
+        return savefig(pdf, figure, **kwargs)
+    monkeypatch.setattr(PdfPages, "savefig", capture)
+    meta = {"subject": "s01", "session": None, "task": "rest", "run": "1", "echo": "2"}
+    render_pdf([(meta, np.arange(10))], tmp_path / "out.pdf", tr_marker=7)
+    np.testing.assert_array_equal(captured[0].lines[0].get_xdata(), np.arange(10))
+    np.testing.assert_array_equal(captured[0].lines[0].get_ydata(), np.arange(10))
+    assert list(captured[0].lines[1].get_xdata()) == [7, 7]

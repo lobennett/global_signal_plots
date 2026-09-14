@@ -15,7 +15,7 @@ reported eight volumes while drawing two four-point traces. All-corrupt input
 returned success with a header-only TSV and an unchanged old PDF; a missing
 root returned success without a PDF. The echo-2 glob also selected echo 20,
 creating identical subject/session/task/run rows. The added regression suite
-initially had **40 failing cases**, confirming these gaps locally.
+initially had **39 failing cases**, confirming these gaps locally.
 
 - `metrics.py` now requires nonempty 4D images, and nonempty finite 1D traces
   with finite summaries. A nonfinite voxel or an overflowing sum makes its

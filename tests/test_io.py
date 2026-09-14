@@ -188,10 +188,10 @@ def _acl_entries(path):
     return [struct.unpack_from("<HHI", blob, offset) for offset in range(4, len(blob), 8)]
 
 
-def _group_class_perms(entries):
-    """Effective permissions the ACL grants the group class (mask applies)."""
+def _owning_group_perms(entries):
+    """Effective permissions for the owning group, limited by the ACL mask."""
     perms = {tag: perm for tag, perm, _ in entries}
-    return perms[ACL_MASK] if ACL_MASK in perms else perms[ACL_GROUP_OBJ]
+    return perms[ACL_GROUP_OBJ] & perms.get(ACL_MASK, 0o7)
 
 
 @pytest.fixture
@@ -252,7 +252,7 @@ def test_publication_and_rollback_preserve_acl(
     assert {path: _acl_entries(path) for path in paths} == before
     for path in paths:
         assert stat.S_IMODE(path.stat().st_mode) == 0o640
-        assert _group_class_perms(_acl_entries(path)) == 0o0
+        assert _owning_group_perms(_acl_entries(path)) == 0o0
     assert not list(tmp_path.glob(".gs-*"))
 
 

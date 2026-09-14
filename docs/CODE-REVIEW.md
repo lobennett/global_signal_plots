@@ -34,15 +34,31 @@ initially had **39 failing cases**, confirming these gaps locally.
   and identifies failure without claiming a new output set. `plot.py` propagates
   plot errors and closes figures, preventing a TSV from being paired with a
   supposedly successful PDF that silently omitted traces.
+- Publication reproduces each prior product's owner, group, mode bits and POSIX
+  access ACL on both its staged replacement and its rollback backup before any
+  replacement, and publishes nothing when that fails. A rerun therefore cannot
+  widen access to an existing restricted output: a staged file created under a
+  permissive umask, or one whose copied mode bits would grant the group the read
+  that an ACL mask denies, is corrected before it becomes the published file.
 
 ## Validation and limits
 
-**58 tests pass**, including the original suite, using `pytest -q -W error`.
+The suite collects **73 tests** and passes using `pytest -q -W error`, including
+the original suite. Its runnable subset is platform-dependent: the 5 POSIX-ACL
+cases skip on hosts whose `os` exposes no extended-attribute calls (Darwin) or
+whose filesystem rejects `system.posix_acl_access`, and the 6 group-ownership
+cases skip when the environment cannot assign a different group, leaving 62
+cases everywhere. On the audited macOS host 68 pass and 5 skip.
 Tests use generated NIfTIs and injected local plot/write/rename failures, with
 fresh and pre-existing outputs. They cover NaN/±Inf, 3D/5D/zero dimensions,
 summary/spatial overflow, missing/non-directory/empty roots, corrupt inputs,
 partial/all-failed scans, exact echo matching, duplicate identities (including
-one corrupt duplicate), glob deduplication, and TSV-only operation.
+one corrupt duplicate), glob deduplication, and TSV-only operation. Access
+preservation is exercised with synthetic owner-only and group-restricted outputs
+under a permissive umask, and with a synthetic ACL (`u::rw-,u:reader:r--,g::---,
+m::r--,o::---`, mode 0640) asserting the published and rolled-back products keep
+that ACL and grant the group class nothing; injected `chmod`, `chown` and
+`setxattr` failures assert that neither product is replaced.
 The installed CLI also passed clean and all-corrupt smoke checks: the latter
 exited 1 with coverage/failure diagnostics and byte-identical prior TSV/PDF.
 `uv build` produced both the source distribution and wheel successfully.
@@ -57,6 +73,19 @@ manifest. This is not validation of the consuming pipeline's Linux lock or a
 Sherlock run. No participant data, historical outputs, remote compute or live
 SDK state was read or changed. These are conditional defects; their incidence
 in research data remains unknown. Private audit bundles are not committed.
+
+Access preservation covers owner, group, mode bits and the POSIX access ACL
+(`system.posix_acl_access`) of the files being replaced. Other ACL flavors are
+not reproduced: platforms whose `os` module exposes no extended-attribute calls
+(such as Darwin) are treated as having mode bits only, so a macOS/NFSv4 ACL on a
+prior output would be dropped. Directory default ACLs and SELinux labels are not
+copied, and preservation is not attempted for destinations that do not yet exist
+— a new output takes the umask and inherited ACL of its directory. A rerun whose
+prior outputs the invoking user cannot `chown` or whose ACL it cannot set (a
+product owned by another lab member, or a group the user has since left) now
+fails with `Operation not permitted` and publishes nothing, where the earlier
+in-place truncating write succeeded; recover by having the owner rerun or by
+removing the stale products.
 
 Replacement is atomic per file, not across the pair: serialize writers to the
 same destinations. Process termination, power loss or concurrent readers during

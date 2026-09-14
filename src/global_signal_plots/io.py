@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from contextlib import contextmanager
+import errno
 import os
 import shutil
 import tempfile
@@ -10,11 +11,33 @@ import tempfile
 import pandas as pd
 
 KEY_COLS = ["subject", "session", "task", "run"]
+ACL_XATTR = "system.posix_acl_access"
+_NO_ACL_ERRNOS = (errno.ENODATA, errno.ENOTSUP, errno.EOPNOTSUPP)
+
+
+def read_access_acl(path) -> bytes | None:
+    """Return a file's POSIX access ACL, or None when it carries none.
+
+    Platforms and filesystems without POSIX ACL extended attributes report
+    None; their access is described by the mode bits alone.
+    """
+    if not hasattr(os, "getxattr"):
+        return None
+    try:
+        return os.getxattr(path, ACL_XATTR)
+    except OSError as exc:
+        if exc.errno in _NO_ACL_ERRNOS:
+            return None
+        raise
 
 
 @contextmanager
 def staged_outputs(paths: list[Path]):
     """Build outputs beside their destinations, then replace with rollback.
+
+    A prior product's owner, group, mode bits and POSIX access ACL are
+    reproduced on both its staged replacement and its rollback backup before
+    any replacement; nothing is published if that cannot be done.
 
     Each rename is atomic, but multiple files are not a crash-safe transaction.
     Callers must serialize runs targeting the same paths.
@@ -25,6 +48,11 @@ def staged_outputs(paths: list[Path]):
         if (original.st_uid, original.st_gid) != (current.st_uid, current.st_gid):
             os.chown(target, original.st_uid, original.st_gid)
         shutil.copymode(source, target)
+        acl = read_access_acl(source)
+        if acl is not None:
+            os.setxattr(target, ACL_XATTR, acl)
+        elif read_access_acl(target) is not None:
+            os.removexattr(target, ACL_XATTR)
 
     paths = [Path(path).resolve() for path in paths]
     if len(set(paths)) != len(paths):

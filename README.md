@@ -76,8 +76,20 @@ outputs. When a PDF is requested, both products are staged before publication;
 a plotting or writing failure does not publish a new table alongside an old
 PDF. Ordinary replacement failures roll back prior products. Treat the CLI
 exit status as authoritative: files left after failure may belong to a prior
-run. Do not run concurrent writers to the same destinations. Replacement is
-atomic per file, not a crash-safe transaction across both files. See
+run.
+
+Rerunning over existing outputs preserves their access restrictions: the owner,
+group, mode bits and POSIX access ACL of each prior product are reproduced on
+its replacement before publication, so a rerun under a permissive umask does not
+widen access to restricted QA outputs. If those restrictions cannot be
+reproduced — for example a prior output owned by another user, so `chown` or the
+ACL update fails with `Operation not permitted` — the run exits nonzero and
+publishes nothing, leaving the prior outputs in place; have the owner rerun or
+remove the stale products. Non-POSIX ACL flavors (e.g. macOS/NFSv4) are not
+reproduced.
+
+Do not run concurrent writers to the same destinations. Replacement is atomic
+per file, not a crash-safe transaction across both files. See
 [the audit record](docs/CODE-REVIEW.md) for evidence and limits.
 
 ## `gs_metrics.tsv` schema
